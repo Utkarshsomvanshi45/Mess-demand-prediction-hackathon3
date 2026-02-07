@@ -1,0 +1,19 @@
+# Ignore databases
+*.db
+database/
+
+# Ignore trained models
+*.pkl
+models/
+
+# Ignore notebooks (EDA is private)
+*.ipynb
+
+# Ignore Python cache
+__pycache__/
+*.pyc
+
+# Ignore environment files
+.env
+
+
