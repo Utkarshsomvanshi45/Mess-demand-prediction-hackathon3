@@ -6,6 +6,13 @@ __pycache__/
 # Ignore environment files
 .env
 
+# Ignore all models by default
+models/*
+
+# Allow only the committed stable model
+!models/model_v1.pkl
+!models/encoders.pkl
+!models/model_registry.json
 
 
 
