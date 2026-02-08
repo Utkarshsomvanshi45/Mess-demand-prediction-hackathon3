@@ -222,4 +222,7 @@ def generate_data(start_date, days=30, semester_phase="Regular"):
 if __name__ == "__main__":
     start = datetime.today()
     generate_data(start_date=start, days=30, semester_phase="Regular")
+    generate_data(start_date=start + timedelta(days=30), days=20, semester_phase="Exams")
+    generate_data(start_date=start + timedelta(days=50), days=20, semester_phase="Holidays")
+
     print(" Mess data generated and inserted successfully")
