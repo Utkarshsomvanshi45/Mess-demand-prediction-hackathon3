@@ -183,4 +183,12 @@ In a production environment, such generated files would typically be excluded fr
 
 ---
 
+## Database and Model Files
+
+This repository includes a snapshot of the SQLite database and a trained model
+to allow immediate reproduction and evaluation of the project.
+
+All data and model artifacts are fully reproducible using the provided scripts.
+In a production environment, such generated artifacts would typically be excluded
+from version control.
 
