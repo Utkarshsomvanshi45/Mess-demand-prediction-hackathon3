@@ -95,6 +95,7 @@ def get_menu_tier(meal, item):
         if item in DINNER_MID: return "Medium"
         return "Low"
 
+
 # --------------------------------------------------
 # Title
 # --------------------------------------------------
