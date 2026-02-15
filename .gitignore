@@ -15,4 +15,11 @@ models/*
 !models/model_registry.json
 
 
+# Ignore database files
+database/
+*.db
+
+# Ignore trained models
+models/
+*.pkl
 
