@@ -60,31 +60,6 @@ The solution is implemented as a complete ML pipeline consisting of:
 
 ---
 
-## 🗂️ Project Structure
-
-Mess-demand-prediction-hackathon3/
-│
-├── app.py # Streamlit dashboard
-│
-├── database/
-│ └── mess.db # SQLite database (included intentionally)
-│
-├── models/
-│ ├── model_v1.pkl # Trained ML model
-│ ├── encoders.pkl # Label encoders
-│ └── model_registry.json # Model version history
-│
-├── scripts/
-│ ├── generate_mess_data.py # Data generation script
-│ ├── train_model.py # Initial model training
-│ └── retrain_model.py # Model retraining & versioning
-│
-├── README.md
-└── .gitignore
-
-
----
-
 ## 🧪 Data Description
 - The dataset is **synthetically generated** using rule-based logic
 - Simulates real university mess operations
@@ -99,41 +74,79 @@ Mess-demand-prediction-hackathon3/
 
 ---
 
-## 🤖 Machine Learning Model
-- **Problem Type:** Classification  
-- **Target Variable:** Demand Level (Low / Medium / High)  
-- **Models Used:**
-  - Logistic Regression
-  - Decision Tree
-  - Random Forest (final selected model)
-- **Evaluation Metrics:**
-  - Accuracy
-  - Precision
-  - Recall
-  - F1-Score
+## 🤖 Machine Learning Models
 
-Model performance is evaluated to ensure reasonable predictive behavior, with emphasis on **deployment readiness** rather than aggressive optimization.
+- **Problem Type:** Multi-class Classification  
+- **Target Variable:** Demand Level (Low / Medium / High)  
+
+### 🧪 Models Trained & Evaluated
+
+During experimentation and retraining phases, the following models were trained:
+
+- Logistic Regression  
+- Decision Tree  
+- Random Forest  
+- Gradient Boosting Classifier  
+- XGBoost Classifier  
+
+Each model was evaluated using:
+
+- Accuracy  
+- Precision (Macro)  
+- Recall (Macro)  
+- F1-Score (Macro)  
+
+The final deployed model for each version was selected based on **Macro F1-Score**, ensuring balanced performance across all demand classes.
 
 ---
 
-## 🔄 Model Lifecycle & Maintenance
-This project demonstrates a complete **model lifecycle pipeline**:
+---
 
-- New data is added to the database
-- Retraining script is executed
-- A new model version is created
-- Model registry is updated
-- Dashboard automatically loads the latest model
+## 🔄 Model Lifecycle & Update History
 
-Example versioning:
-model_v1.pkl → model_v2.pkl → model_v3.pkl
+This project follows a structured retraining and versioning workflow.
 
+Whenever new synthetic data is generated and appended to the database:
 
-The model registry (`model_registry.json`) stores:
-- Model version
-- Training timestamp
-- Number of records used for training
+1. The model is retrained on the updated dataset.
+2. Performance metrics are recalculated.
+3. A new model version is saved.
+4. The `model_registry.json` file is updated.
+5. The dashboard automatically loads the latest model version.
 
+---
+
+### 📅 Model Training Timeline
+
+| Version | Date        | Event              | Description |
+|---------|------------|--------------------|-------------|
+| v1      | 08 Feb 2025 | Initial Training   | Baseline model trained on initial dataset |
+| v2      | 20 Feb 2025 | First Retraining   | Additional data appended and model retrained |
+| v3      | 28 Feb 2025 | Second Retraining  | Data regenerated and model re-evaluated |
+
+Each retraining includes:
+
+- Updated dataset size  
+- Updated evaluation metrics  
+- Updated training timestamp  
+- Version increment in registry  
+
+---
+
+## 📊 Model Registry
+
+The file `models/model_registry.json` maintains:
+
+- Model version  
+- Model type  
+- Training date  
+- Number of records used  
+- Accuracy  
+- Precision (Macro)  
+- Recall (Macro)  
+- F1-Score (Macro)  
+
+This ensures transparency, reproducibility, and traceability of model evolution.
 ---
 
 ## 📊 Dashboard Features
@@ -170,25 +183,4 @@ The Streamlit dashboard provides:
 - Algorithm type
 
 ---
-
-## 🧾 Database and Model Files (Important Note)
-The SQLite database and trained model files are **intentionally included** in this repository to allow **immediate reproducibility and evaluation**.
-
-All artifacts are fully reproducible using the provided scripts:
-- `scripts/generate_mess_data.py`
-- `scripts/train_model.py`
-- `scripts/retrain_model.py`
-
-In a production environment, such generated files would typically be excluded from version control.
-
----
-
-## Database and Model Files
-
-This repository includes a snapshot of the SQLite database and a trained model
-to allow immediate reproduction and evaluation of the project.
-
-All data and model artifacts are fully reproducible using the provided scripts.
-In a production environment, such generated artifacts would typically be excluded
-from version control.
 
