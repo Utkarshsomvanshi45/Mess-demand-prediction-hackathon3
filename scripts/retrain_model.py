@@ -130,7 +130,7 @@ registry["models"].append({
     "version": new_version,
     "model_name": model_name,
     "model_file": model_filename,
-    "trained_on_records": df.shape[0],-
+    "trained_on_records": df.shape[0],
     "training_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
     "accuracy": round(float(acc), 4),
     "precision_macro": round(float(precision), 4),

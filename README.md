@@ -123,7 +123,7 @@ Whenever new synthetic data is generated and appended to the database:
 | v1      | 08 Feb 2025 | Initial Training   | Baseline model trained on initial dataset |
 | v2      | 20 Feb 2025 | First Retraining   | Additional data appended and model retrained |
 | v3      | 28 Feb 2025 | Second Retraining  | Data regenerated and model re-evaluated |
-
+| v4      | 28 Feb 2025 | Third Retraining  | Data regenerated and model re-evaluated |
 Each retraining includes:
 
 - Updated dataset size  
