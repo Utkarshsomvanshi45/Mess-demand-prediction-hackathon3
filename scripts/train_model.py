@@ -162,18 +162,22 @@ if __name__ == "__main__":
     # Initialize Registry
     # --------------------------------------------------
     registry = {
-        "current_version": version,
-        "models": [
-            {
-                "version": version,
-                "model_name": best_model_name,
-                "model_file": model_filename,
-                "trained_on_records": df.shape[0],
-                "training_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "f1_macro": round(float(best_f1), 4)
-            }
-        ]
-    }
+    "current_version": version,
+    "models": [
+        {
+            "version": version,
+            "model_name": best_model_name,
+            "model_file": model_filename,
+            "trained_on_records": df.shape[0],
+            "training_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            "accuracy": round(float(acc), 4),
+            "precision_macro": round(float(precision), 4),
+            "recall_macro": round(float(recall), 4),
+            "f1_macro": round(float(best_f1), 4),
+            "train_time_sec": train_time
+        }
+    ]
+}
 
     with open(REGISTRY_PATH, "w") as f:
         json.dump(registry, f, indent=4)

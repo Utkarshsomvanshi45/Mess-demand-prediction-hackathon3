@@ -4,10 +4,11 @@ import joblib
 import json
 import os
 from datetime import datetime
-
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+import time
 from sklearn.model_selection import train_test_split
 from sklearn.preprocessing import LabelEncoder
-from sklearn.metrics import f1_score
+
 
 from sklearn.linear_model import LogisticRegression
 from sklearn.tree import DecisionTreeClassifier
@@ -100,12 +101,16 @@ X_train, X_test, y_train, y_test = train_test_split(
 # --------------------------------------------------
 # Train Model
 # --------------------------------------------------
+start = time.time()
 model.fit(X_train, y_train)
+train_time = round(time.time() - start, 3)
 
 preds = model.predict(X_test)
-f1_macro = f1_score(y_test, preds, average="macro")
 
-print(f"New F1 Macro: {f1_macro:.4f}")
+acc = accuracy_score(y_test, preds)
+precision = precision_score(y_test, preds, average="macro")
+recall = recall_score(y_test, preds, average="macro")
+f1 = f1_score(y_test, preds, average="macro")
 
 # --------------------------------------------------
 # Save New Version
@@ -120,16 +125,19 @@ joblib.dump(encoders, os.path.join(MODELS_DIR, "encoders.pkl"))
 # Update Registry
 # --------------------------------------------------
 registry["current_version"] = new_version
-
+model_name = type(model).__name__
 registry["models"].append({
     "version": new_version,
-    "model_name": model_type,
+    "model_name": model_name,
     "model_file": model_filename,
-    "trained_on_records": df.shape[0],
+    "trained_on_records": df.shape[0],-
     "training_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-    "f1_macro": round(float(f1_macro), 4)
+    "accuracy": round(float(acc), 4),
+    "precision_macro": round(float(precision), 4),
+    "recall_macro": round(float(recall), 4),
+    "f1_macro": round(float(f1), 4),
+    "train_time_sec": train_time
 })
-
 with open(REGISTRY_PATH, "w") as f:
     json.dump(registry, f, indent=4)
 
