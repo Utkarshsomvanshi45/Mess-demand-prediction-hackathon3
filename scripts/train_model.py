@@ -108,13 +108,14 @@ if __name__ == "__main__":
         "Random Forest": RandomForestClassifier(random_state=42),
         "Gradient Boosting": GradientBoostingClassifier(),
         "SVM (RBF)": SVC(),
-        "XGBoost": XGBClassifier(use_label_encoder=False, eval_metric="mlogloss")
+        "XGBoost": XGBClassifier(eval_metric="mlogloss")
     }
 
     results = []
     best_model = None
     best_f1 = 0
     best_model_name = None
+    best_metrics = {}  # capture metrics at the moment best model is selected
 
     print("\n========== MODEL TRAINING ==========")
 
@@ -137,6 +138,14 @@ if __name__ == "__main__":
             best_f1 = f1
             best_model = model
             best_model_name = name
+            # Store metrics at the moment of selection — not reused from loop end
+            best_metrics = {
+                "accuracy": round(float(acc), 4),
+                "precision_macro": round(float(precision), 4),
+                "recall_macro": round(float(recall), 4),
+                "f1_macro": round(float(f1), 4),
+                "train_time_sec": train_time
+            }
 
     results_df = pd.DataFrame(
         results,
@@ -155,29 +164,32 @@ if __name__ == "__main__":
     joblib.dump(best_model, os.path.join(MODEL_DIR, model_filename))
     joblib.dump(encoders, os.path.join(MODEL_DIR, "encoders.pkl"))
 
-    print(f"\nBest Model Selected: {best_model_name}")
+    # Use class name so retrain_model.py can reliably reconstruct the model
+    best_model_class_name = type(best_model).__name__
+
+    print(f"\nBest Model Selected: {best_model_name} ({best_model_class_name})")
     print(f"Saved as: {model_filename}")
 
     # --------------------------------------------------
     # Initialize Registry
     # --------------------------------------------------
     registry = {
-    "current_version": version,
-    "models": [
-        {
-            "version": version,
-            "model_name": best_model_name,
-            "model_file": model_filename,
-            "trained_on_records": df.shape[0],
-            "training_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "accuracy": round(float(acc), 4),
-            "precision_macro": round(float(precision), 4),
-            "recall_macro": round(float(recall), 4),
-            "f1_macro": round(float(best_f1), 4),
-            "train_time_sec": train_time
-        }
-    ]
-}
+        "current_version": version,
+        "models": [
+            {
+                "version": version,
+                "model_name": best_model_class_name,   # class name, not display name
+                "model_file": model_filename,
+                "trained_on_records": df.shape[0],
+                "training_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "accuracy": best_metrics["accuracy"],
+                "precision_macro": best_metrics["precision_macro"],
+                "recall_macro": best_metrics["recall_macro"],
+                "f1_macro": best_metrics["f1_macro"],
+                "train_time_sec": best_metrics["train_time_sec"]
+            }
+        ]
+    }
 
     with open(REGISTRY_PATH, "w") as f:
         json.dump(registry, f, indent=4)

@@ -42,20 +42,24 @@ print(f"Previous Model Type: {model_type}")
 # Initialize Same Model Type
 # --------------------------------------------------
 def initialize_model(model_name):
-    if model_name == "Logistic Regression":
+    """
+    model_name is the class name (e.g. 'RandomForestClassifier'),
+    matching what train_model.py saves via type(model).__name__.
+    """
+    if model_name == "LogisticRegression":
         return LogisticRegression(max_iter=1000)
-    elif model_name == "Decision Tree":
+    elif model_name == "DecisionTreeClassifier":
         return DecisionTreeClassifier()
-    elif model_name == "Random Forest":
+    elif model_name == "RandomForestClassifier":
         return RandomForestClassifier(random_state=42)
-    elif model_name == "Gradient Boosting":
+    elif model_name == "GradientBoostingClassifier":
         return GradientBoostingClassifier()
-    elif model_name == "SVM (RBF)":
+    elif model_name == "SVC":
         return SVC()
-    elif model_name == "XGBoost":
-        return XGBClassifier(use_label_encoder=False, eval_metric="mlogloss")
+    elif model_name == "XGBClassifier":
+        return XGBClassifier(eval_metric="mlogloss")  # use_label_encoder removed in newer XGBoost
     else:
-        raise ValueError("Unsupported model type in registry.")
+        raise ValueError(f"Unsupported model type in registry: '{model_name}'")
 
 
 model = initialize_model(model_type)
