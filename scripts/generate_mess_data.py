@@ -186,8 +186,10 @@ def generate_data(start_date, days=30, semester_phase="Regular"):
         current_date = start_date + timedelta(days=i)
         day, is_weekend = get_day_info(current_date)
 
+        # Occupancy is a property of the day, not individual meals
+        occupancy = get_hostel_occupancy(semester_phase, is_weekend)
+
         for meal in ["Breakfast", "Lunch", "Dinner"]:
-            occupancy = get_hostel_occupancy(semester_phase, is_weekend)
             menu = select_menu(meal, day, is_weekend)
             demand = calculate_demand(
                 menu["menu_demand_tier"], occupancy, menu["has_dessert"]
@@ -220,7 +222,9 @@ def generate_data(start_date, days=30, semester_phase="Regular"):
 
 # Run the data generation
 if __name__ == "__main__":
-    start = datetime.today()
+    # Each call resets previous_demand internally (local variable).
+    # Using non-overlapping date windows to avoid duplicate records.
+    start = datetime.today().replace(hour=0, minute=0, second=0, microsecond=0)
     generate_data(start_date=start, days=30, semester_phase="Regular")
     generate_data(start_date=start + timedelta(days=30), days=20, semester_phase="Exams")
     generate_data(start_date=start + timedelta(days=50), days=20, semester_phase="Holidays")
