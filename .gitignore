@@ -23,3 +23,7 @@ database/
 models/
 *.pkl
 
+# Frontend
+frontend/node_modules/
+frontend/dist/
+
