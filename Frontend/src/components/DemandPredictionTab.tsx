@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Sparkles, Trash2, Leaf } from 'lucide-react';
+import { Sparkles, Trash2, Leaf, Loader2 } from 'lucide-react';
 import {
   type MealType, type DemandLevel, type SemesterPhase,
   DISHES_BY_MEAL, DAYS_OF_WEEK, getTier,
-  calculateDemand, getWasteMetrics, MEAL_FACTORS,
 } from '@/lib/constants';
+import { api, type PredictResponse } from '@/lib/api';
 
 const KpiCard = ({ label, value, sub }: { label: string; value: string; sub?: string }) => (
   <div className="card-surface p-4 space-y-1">
@@ -15,15 +15,17 @@ const KpiCard = ({ label, value, sub }: { label: string; value: string; sub?: st
 );
 
 const DemandPredictionTab = () => {
-  const [meal, setMeal] = useState<MealType>('Lunch');
-  const [day, setDay] = useState('Monday');
-  const [dish, setDish] = useState(DISHES_BY_MEAL['Lunch'][0]);
-  const [phase, setPhase] = useState<SemesterPhase>('Regular');
+  const [meal,      setMeal]      = useState<MealType>('Lunch');
+  const [day,       setDay]       = useState('Monday');
+  const [dish,      setDish]      = useState(DISHES_BY_MEAL['Lunch'][0]);
+  const [phase,     setPhase]     = useState<SemesterPhase>('Regular');
   const [occupancy, setOccupancy] = useState(80);
-  const [dessert, setDessert] = useState(false);
-  const [fruit, setFruit] = useState(false);
-  const [drink, setDrink] = useState(false);
-  const [result, setResult] = useState<{ demand: DemandLevel; waste: ReturnType<typeof getWasteMetrics> } | null>(null);
+  const [dessert,   setDessert]   = useState(false);
+  const [fruit,     setFruit]     = useState(false);
+  const [drink,     setDrink]     = useState(false);
+  const [result,    setResult]    = useState<PredictResponse | null>(null);
+  const [loading,   setLoading]   = useState(false);
+  const [error,     setError]     = useState<string | null>(null);
 
   const tier = getTier(dish);
 
@@ -33,27 +35,49 @@ const DemandPredictionTab = () => {
     setResult(null);
   };
 
-  const predict = () => {
-    const demand = calculateDemand(occupancy, tier);
-    const waste = getWasteMetrics(occupancy, meal, demand);
-    setResult({ demand, waste });
+  const predict = async () => {
+    setLoading(true);
+    setError(null);
+    setResult(null);
+    try {
+      const res = await api.predict({
+        day_of_week:          day,
+        meal_type:            meal,
+        primary_item:         dish,
+        menu_demand_tier:     tier,
+        has_paneer:           dish.toLowerCase().includes('paneer') ? 1 : 0,
+        has_chicken:          dish.toLowerCase().includes('chicken') ? 1 : 0,
+        has_egg:              dish.toLowerCase().includes('egg') ? 1 : 0,
+        has_dessert:          dessert ? 1 : 0,
+        has_special_cuisine:  ['Chinese','Mexican','Pav Bhaji','Biryani'].includes(dish) ? 1 : 0,
+        has_drink:            drink ? 1 : 0,
+        has_fruit:            fruit ? 1 : 0,
+        hostel_occupancy_pct: occupancy,
+        semester_phase:       phase,
+        is_weekend:           ['Saturday','Sunday'].includes(day) ? 1 : 0,
+        previous_meal_demand: 'Medium',
+      });
+      setResult(res);
+    } catch (e: any) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const tierClass = tier === 'High' ? 'badge-tier-high' : tier === 'Medium' ? 'badge-tier-medium' : 'badge-tier-low';
-  const demandColor = (d: DemandLevel) => d === 'High' ? 'text-demand-high' : d === 'Medium' ? 'text-demand-medium' : 'text-demand-low';
-
-  const wasteColor = (pct: number) => pct > 20 ? 'text-demand-high' : pct > 10 ? 'text-demand-medium' : 'text-demand-low';
-  const wasteBg = (pct: number) => pct > 20 ? 'bg-danger' : pct > 10 ? 'bg-warning' : 'bg-success';
+  const tierClass    = tier === 'High' ? 'badge-tier-high' : tier === 'Medium' ? 'badge-tier-medium' : 'badge-tier-low';
+  const demandColor  = (d: DemandLevel) => d === 'High' ? 'text-demand-high' : d === 'Medium' ? 'text-demand-medium' : 'text-demand-low';
+  const wasteColor   = (pct: number)    => pct > 20 ? 'text-demand-high' : pct > 10 ? 'text-demand-medium' : 'text-demand-low';
+  const wasteBg      = (pct: number)    => pct > 20 ? 'bg-danger' : pct > 10 ? 'bg-warning' : 'bg-success';
 
   const tips: Record<DemandLevel, string> = {
-    High: 'Expect heavy footfall. Prepare maximum portions. Consider extra staff on duty.',
+    High:   'Expect heavy footfall. Prepare maximum portions. Consider extra staff on duty.',
     Medium: 'Moderate turnout expected. Prepare standard quantity.',
-    Low: 'Light attendance expected. Reduce preparation to minimise waste.',
+    Low:    'Light attendance expected. Reduce preparation to minimise waste.',
   };
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-[58fr_42fr] gap-6 animate-fade-in">
-      {/* Left — Input */}
       <div className="card-surface p-6 space-y-5">
         <div className="flex items-center gap-2 mb-2">
           <Sparkles className="w-5 h-5 text-primary" />
@@ -61,7 +85,7 @@ const DemandPredictionTab = () => {
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <SelectField label="Meal Type" value={meal} options={['Breakfast', 'Lunch', 'Dinner']} onChange={(v) => handleMealChange(v as MealType)} />
+          <SelectField label="Meal Type" value={meal} options={['Breakfast','Lunch','Dinner']} onChange={(v) => handleMealChange(v as MealType)} />
           <SelectField label="Day of Week" value={day} options={DAYS_OF_WEEK} onChange={setDay} />
         </div>
 
@@ -73,11 +97,12 @@ const DemandPredictionTab = () => {
         </div>
 
         <div className="grid grid-cols-2 gap-4">
-          <SelectField label="Semester Phase" value={phase} options={['Regular', 'Exams', 'Holidays']} onChange={(v) => setPhase(v as SemesterPhase)} />
+          <SelectField label="Semester Phase" value={phase} options={['Regular','Exams','Holidays']} onChange={(v) => setPhase(v as SemesterPhase)} />
           <div className="space-y-2">
             <label className="text-xs text-muted-foreground">Hostel Occupancy</label>
             <div className="flex items-center gap-3">
-              <input type="range" min={30} max={100} value={occupancy} onChange={(e) => { setOccupancy(+e.target.value); setResult(null); }}
+              <input type="range" min={30} max={100} value={occupancy}
+                onChange={(e) => { setOccupancy(+e.target.value); setResult(null); }}
                 className="flex-1 accent-primary h-2 bg-border rounded-full appearance-none [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-primary [&::-webkit-slider-thumb]:cursor-pointer" />
               <span className="text-primary font-semibold text-sm min-w-[3rem] text-right">{occupancy}%</span>
             </div>
@@ -88,17 +113,20 @@ const DemandPredictionTab = () => {
           <label className="text-xs text-muted-foreground">Menu Add-ons</label>
           <div className="flex gap-4">
             <Toggle label="Dessert Served" checked={dessert} onChange={setDessert} />
-            <Toggle label="Fruit Served" checked={fruit} onChange={setFruit} />
-            <Toggle label="Drink Served" checked={drink} onChange={setDrink} />
+            <Toggle label="Fruit Served"   checked={fruit}   onChange={setFruit} />
+            <Toggle label="Drink Served"   checked={drink}   onChange={setDrink} />
           </div>
         </div>
 
-        <button onClick={predict} className="btn-primary text-sm">
-          ⚡ Predict Demand
+        <button onClick={predict} disabled={loading} className="btn-primary text-sm">
+          {loading
+            ? <span className="flex items-center justify-center gap-2"><Loader2 className="w-4 h-4 animate-spin" />Predicting...</span>
+            : '⚡ Predict Demand'}
         </button>
+
+        {error && <p className="text-xs text-destructive">Error: {error} — is the backend running at localhost:8000?</p>}
       </div>
 
-      {/* Right — Results */}
       <div className="space-y-4">
         {!result ? (
           <div className="card-surface border-dashed p-12 flex flex-col items-center justify-center text-center min-h-[400px]">
@@ -107,48 +135,40 @@ const DemandPredictionTab = () => {
           </div>
         ) : (
           <>
-            {/* Card A — Demand */}
             <div className="card-surface p-6 animate-fade-in space-y-3">
               <p className="text-[10px] font-bold text-muted-foreground tracking-widest uppercase">Predicted Demand</p>
               <p className={`text-5xl font-outfit font-bold ${demandColor(result.demand)}`}>{result.demand}</p>
               <p className="text-sm text-muted-foreground">{tips[result.demand]}</p>
             </div>
 
-            {/* Card B — Waste Estimation */}
             <div className="card-surface p-6 animate-fade-in space-y-4">
               <div className="flex items-center gap-2">
                 <Trash2 className="w-4 h-4 text-muted-foreground" />
                 <Leaf className="w-4 h-4 text-success" />
                 <p className="text-xs font-bold text-muted-foreground tracking-widest uppercase">Estimated Food Waste Impact</p>
               </div>
-
               <div className="grid grid-cols-3 gap-3">
                 <KpiCard label="Recommended" value={`${result.waste.recommended}`} sub="portions" />
-                <KpiCard label="Expected" value={`${result.waste.expected}`} sub="consumption" />
-                <KpiCard label="Est. Waste" value={`${result.waste.waste}`} sub={`${result.waste.wastePct.toFixed(1)}%`} />
+                <KpiCard label="Expected"    value={`${result.waste.expected}`}    sub="consumption" />
+                <KpiCard label="Est. Waste"  value={`${result.waste.waste}`}       sub={`${result.waste.wastePct.toFixed(1)}%`} />
               </div>
-
-              {/* Waste bar */}
               <div className="space-y-1">
                 <div className="h-2 w-full bg-border rounded-full overflow-hidden">
-                  <div className={`h-full ${wasteBg(result.waste.wastePct)} rounded-full transition-all duration-700`} style={{ width: `${Math.min(result.waste.wastePct, 100)}%` }} />
+                  <div className={`h-full ${wasteBg(result.waste.wastePct)} rounded-full transition-all duration-700`}
+                    style={{ width: `${Math.min(result.waste.wastePct, 100)}%` }} />
                 </div>
                 <p className={`text-xs font-semibold ${wasteColor(result.waste.wastePct)}`}>{result.waste.wastePct.toFixed(1)}% waste</p>
               </div>
-
               <p className="text-sm text-muted-foreground">Estimated waste cost: <span className="text-primary font-semibold">₹{result.waste.cost.toLocaleString()}</span></p>
               <p className="text-xs text-muted-foreground">Preparing {result.waste.waste} fewer portions could save ₹{result.waste.cost.toLocaleString()} today</p>
             </div>
 
-            {/* Input Summary */}
             <div className="card-surface p-4 animate-fade-in">
               <p className="text-[10px] font-bold text-muted-foreground tracking-widest uppercase mb-3">Input Summary</p>
               <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-xs">
-                {[
-                  ['Meal', meal], ['Day', day], ['Dish', dish], ['Tier', tier],
-                  ['Phase', phase], ['Occupancy', `${occupancy}%`],
-                  ['Dessert', dessert ? 'Yes' : 'No'], ['Fruit', fruit ? 'Yes' : 'No'], ['Drink', drink ? 'Yes' : 'No'],
-                ].map(([k, v]) => (
+                {[['Meal',meal],['Day',day],['Dish',dish],['Tier',tier],['Phase',phase],['Occupancy',`${occupancy}%`],
+                  ['Dessert',dessert?'Yes':'No'],['Fruit',fruit?'Yes':'No'],['Drink',drink?'Yes':'No']
+                ].map(([k,v]) => (
                   <div key={k} className="flex justify-between py-1 border-b border-border/50">
                     <span className="text-muted-foreground">{k}</span>
                     <span className="text-foreground font-medium">{v}</span>
@@ -175,12 +195,7 @@ const SelectField = ({ label, value, options, onChange }: { label: string; value
 
 const Toggle = ({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) => (
   <label className="flex items-center gap-2 cursor-pointer text-sm">
-    <input
-      type="checkbox"
-      checked={checked}
-      onChange={(e) => onChange(e.target.checked)}
-      className="sr-only"
-    />
+    <input type="checkbox" checked={checked} onChange={(e) => onChange(e.target.checked)} className="sr-only" />
     <div className={`w-4 h-4 rounded border ${checked ? 'bg-primary border-primary' : 'border-border'} flex items-center justify-center transition-colors`}>
       {checked && <span className="text-accent-foreground text-[10px] font-bold">✓</span>}
     </div>

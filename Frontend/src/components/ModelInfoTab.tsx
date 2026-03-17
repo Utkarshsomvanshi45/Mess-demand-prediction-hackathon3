@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Cpu, BarChart3, Activity, Award, Database, RefreshCw, CheckCircle2, Loader2 } from 'lucide-react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line, Legend } from 'recharts';
-import { FEATURE_IMPORTANCE, CONFUSION_MATRIX, PERFORMANCE_HISTORY, MODEL_VERSIONS } from '@/lib/constants';
+import { api, type ModelInfoResponse, type ModelHistoryResponse, type PipelineStatusResponse } from '@/lib/api';
 
 const tt = {
   contentStyle: { backgroundColor: '#0f1623', border: '1px solid #f59e0b33', borderRadius: '12px', color: '#f1f5f9', fontSize: '12px' },
@@ -9,50 +9,120 @@ const tt = {
 
 const LABELS = ['Low', 'Medium', 'High'];
 
+const RETRAIN_STEPS = [
+  'Loading data from database...',
+  'Preprocessing features...',
+  'Training model...',
+  'Evaluating on held-out test split...',
+  'Saving new model version...',
+  'Updating model registry...',
+];
+
 const ModelInfoTab = () => {
-  const [addDataState, setAddDataState] = useState<'idle' | 'loading' | 'done'>('idle');
-  const [retrainState, setRetrainState] = useState<'idle' | 'loading' | 'done'>('idle');
-  const [retrainStep, setRetrainStep] = useState(0);
-  const [addDays, setAddDays] = useState('14');
-  const [addPhase, setAddPhase] = useState('Regular');
+  const [modelInfo, setModelInfo]       = useState<ModelInfoResponse | null>(null);
+  const [history, setHistory]           = useState<ModelHistoryResponse | null>(null);
+  const [pipelineStatus, setPipelineStatus] = useState<PipelineStatusResponse | null>(null);
+  const [loading, setLoading]           = useState(true);
 
-  const RETRAIN_STEPS = [
-    'Loading data from database...',
-    'Preprocessing features...',
-    'Training RandomForestClassifier...',
-    'Evaluating on held-out test split...',
-    'Saving model_v5.pkl...',
-    'Updating model registry...',
-  ];
+  const [addDataState, setAddDataState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [retrainState, setRetrainState] = useState<'idle' | 'loading' | 'done' | 'error'>('idle');
+  const [retrainStep, setRetrainStep]   = useState(0);
+  const [addDays, setAddDays]           = useState('14');
+  const [addPhase, setAddPhase]         = useState('Regular');
+  const [addResult, setAddResult]       = useState<{ message: string } | null>(null);
+  const [retrainResult, setRetrainResult] = useState<{ message: string } | null>(null);
+  const [retrainError, setRetrainError] = useState<string | null>(null);
 
-  const handleAddData = () => {
-    setAddDataState('loading');
-    setTimeout(() => setAddDataState('done'), 2000);
+  const fetchAll = () => {
+    setLoading(true);
+    Promise.all([
+      api.modelInfo(),
+      api.modelHistory(),
+      api.pipelineStatus(),
+    ]).then(([info, hist, status]) => {
+      setModelInfo(info);
+      setHistory(hist);
+      setPipelineStatus(status);
+    }).catch(console.error)
+      .finally(() => setLoading(false));
   };
 
-  const handleRetrain = () => {
+  useEffect(() => { fetchAll(); }, []);
+
+  const handleAddData = async () => {
+    setAddDataState('loading');
+    setAddResult(null);
+    try {
+      const res = await api.addData({ days: parseInt(addDays), semester_phase: addPhase });
+      setAddResult({ message: res.message });
+      setAddDataState('done');
+      // Refresh pipeline status
+      api.pipelineStatus().then(setPipelineStatus);
+    } catch (e: any) {
+      setAddDataState('error');
+      setAddResult({ message: e.message });
+    }
+  };
+
+  const handleRetrain = async () => {
     setRetrainState('loading');
     setRetrainStep(0);
+    setRetrainResult(null);
+    setRetrainError(null);
+
+    // Animate steps while real API call runs
     let step = 0;
     const interval = setInterval(() => {
       step++;
       setRetrainStep(step);
-      if (step >= RETRAIN_STEPS.length) {
-        clearInterval(interval);
-        setTimeout(() => setRetrainState('done'), 500);
+      if (step >= RETRAIN_STEPS.length) clearInterval(interval);
+    }, 700);
+
+    try {
+      const res = await api.retrain(100);
+      clearInterval(interval);
+      setRetrainStep(RETRAIN_STEPS.length);
+
+      if (res.success) {
+        setRetrainResult({ message: res.message });
+        setRetrainState('done');
+        // Refresh everything after retrain
+        fetchAll();
+      } else {
+        setRetrainError(res.message);
+        setRetrainState('error');
       }
-    }, 600);
+    } catch (e: any) {
+      clearInterval(interval);
+      setRetrainError(e.message);
+      setRetrainState('error');
+    }
   };
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-64 gap-3 text-muted-foreground">
+      <Loader2 className="w-5 h-5 animate-spin" />
+      <span>Loading model info...</span>
+    </div>
+  );
+
+  if (!modelInfo || !history || !pipelineStatus) return (
+    <div className="flex items-center justify-center h-64 text-destructive text-sm">
+      Failed to load — is the backend running at localhost:8000?
+    </div>
+  );
+
+  const thresholdPct = Math.min((pipelineStatus.new_records / pipelineStatus.threshold) * 100, 100);
 
   return (
     <div className="space-y-6 animate-fade-in">
       {/* Model Stats */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
-          { icon: Cpu, label: 'Algorithm', value: 'RandomForest' },
-          { icon: BarChart3, label: 'Version', value: 'v4' },
-          { icon: Activity, label: 'Accuracy', value: '91.4%' },
-          { icon: Award, label: 'F1 Score', value: '88.2%' },
+          { icon: Cpu,      label: 'Algorithm', value: modelInfo.model_name },
+          { icon: BarChart3,label: 'Version',   value: `v${modelInfo.version}` },
+          { icon: Activity, label: 'Accuracy',  value: `${modelInfo.accuracy}%` },
+          { icon: Award,    label: 'F1 Score',  value: `${modelInfo.f1_score}%` },
         ].map(({ icon: Icon, label, value }) => (
           <div key={label} className="card-surface p-5 space-y-2">
             <div className="flex items-center gap-2">
@@ -69,12 +139,12 @@ const ModelInfoTab = () => {
         <div className="card-surface p-6">
           <h3 className="font-outfit font-bold mb-4">Feature Importance</h3>
           <ResponsiveContainer width="100%" height={300}>
-            <BarChart data={FEATURE_IMPORTANCE} layout="vertical">
+            <BarChart data={[...modelInfo.feature_importance].reverse()} layout="vertical">
               <CartesianGrid strokeDasharray="3 3" stroke="#1e2a3a" />
               <XAxis type="number" stroke="#64748b" fontSize={11} domain={[0, 0.5]} />
               <YAxis type="category" dataKey="feature" stroke="#64748b" fontSize={10} width={140} />
               <Tooltip {...tt} />
-              <Bar dataKey="importance" fill="#f59e0b" radius={[0, 6, 6, 0]} animationDuration={1500} />
+              <Bar dataKey="importance" fill="#f59e0b" radius={[0,6,6,0]} animationDuration={1500} />
             </BarChart>
           </ResponsiveContainer>
         </div>
@@ -83,14 +153,16 @@ const ModelInfoTab = () => {
           <h3 className="font-outfit font-bold mb-4">Confusion Matrix</h3>
           <div className="flex items-center gap-1 mb-2">
             <span className="text-[10px] text-muted-foreground w-20" />
-            {LABELS.map((l) => (
+            {modelInfo.confusion_labels.map((l) => (
               <span key={l} className="flex-1 text-center text-[10px] text-muted-foreground font-medium">{l}</span>
             ))}
           </div>
           <p className="text-[10px] text-muted-foreground text-center mb-1">← Predicted →</p>
-          {CONFUSION_MATRIX.map((row, i) => (
+          {modelInfo.confusion_matrix.map((row, i) => (
             <div key={i} className="flex items-center gap-1 mb-1">
-              <span className="w-20 text-[10px] text-muted-foreground text-right pr-2">{LABELS[i]}</span>
+              <span className="w-20 text-[10px] text-muted-foreground text-right pr-2">
+                {modelInfo.confusion_labels[i]}
+              </span>
               {row.map((val, j) => {
                 const isDiag = i === j;
                 return (
@@ -109,32 +181,37 @@ const ModelInfoTab = () => {
       <div className="card-surface p-6">
         <h3 className="font-outfit font-bold mb-4">Model Performance Evolution</h3>
         <ResponsiveContainer width="100%" height={280}>
-          <LineChart data={PERFORMANCE_HISTORY}>
+          <LineChart data={history.versions.map(v => ({
+            version:   v.version,
+            accuracy:  v.accuracy_pct,
+            f1:        v.f1_pct,
+            precision: v.precision_pct,
+          }))}>
             <CartesianGrid strokeDasharray="3 3" stroke="#1e2a3a" />
             <XAxis dataKey="version" stroke="#64748b" fontSize={12} />
-            <YAxis stroke="#64748b" fontSize={11} domain={[70, 100]} />
+            <YAxis stroke="#64748b" fontSize={11} domain={[60, 100]} />
             <Tooltip {...tt} />
-            <Line type="monotone" dataKey="accuracy" stroke="#f59e0b" strokeWidth={2} dot={{ r: 5, fill: '#f59e0b' }} animationDuration={1500} />
-            <Line type="monotone" dataKey="f1" stroke="#3b82f6" strokeWidth={2} dot={{ r: 5, fill: '#3b82f6' }} animationDuration={1500} />
+            <Line type="monotone" dataKey="accuracy"  stroke="#f59e0b" strokeWidth={2} dot={{ r: 5, fill: '#f59e0b' }} animationDuration={1500} />
+            <Line type="monotone" dataKey="f1"        stroke="#3b82f6" strokeWidth={2} dot={{ r: 5, fill: '#3b82f6' }} animationDuration={1500} />
             <Line type="monotone" dataKey="precision" stroke="#10b981" strokeWidth={2} dot={{ r: 5, fill: '#10b981' }} animationDuration={1500} />
             <Legend wrapperStyle={{ fontSize: '12px' }} />
           </LineChart>
         </ResponsiveContainer>
       </div>
 
-      {/* Registry */}
+      {/* Registry Table */}
       <div className="card-surface p-6">
         <h3 className="font-outfit font-bold mb-4">Model Registry History</h3>
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b border-border">
-              {['Version', 'Model Name', 'Records', 'Accuracy', 'F1', 'Training Date'].map((h) => (
+              {['Version','Model Name','Records','Accuracy','F1','Training Date'].map((h) => (
                 <th key={h} className="px-4 py-2 text-left text-muted-foreground font-medium">{h}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {MODEL_VERSIONS.map((v, i) => (
+            {history.versions.map((v, i) => (
               <tr key={v.version} className={`border-b border-border/30 ${i % 2 === 1 ? 'bg-background/30' : ''}`}>
                 <td className="px-4 py-3 text-primary font-semibold font-mono">{v.version}</td>
                 <td className="px-4 py-3">{v.name}</td>
@@ -156,10 +233,10 @@ const ModelInfoTab = () => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Inject Data */}
+        {/* Add Data */}
         <div className="card-surface glow-hover p-8 relative overflow-hidden">
           <div className="absolute top-4 right-6 text-[10px] font-bold text-muted-foreground tracking-widest uppercase">
-            Current Records — 1,020
+            Current Records — {pipelineStatus.total_records.toLocaleString()}
           </div>
           <div className="flex items-start gap-6">
             <div className="p-4 bg-primary rounded-xl flex-shrink-0">
@@ -168,7 +245,8 @@ const ModelInfoTab = () => {
             <div className="space-y-2">
               <h3 className="text-xl font-outfit font-bold">Inject New Training Data</h3>
               <p className="text-muted-foreground text-sm leading-relaxed">
-                Generates a new batch of synthetic mess records and appends them to the database. Simulates real-world data accumulation over time.
+                Generates a new batch of synthetic mess records and appends them to the database.
+                Simulates real-world data accumulation over time.
               </p>
             </div>
           </div>
@@ -176,7 +254,8 @@ const ModelInfoTab = () => {
           <div className="mt-6 grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <label className="text-xs text-muted-foreground">Days of Data</label>
-              <select value={addDays} onChange={(e) => setAddDays(e.target.value)} className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+              <select value={addDays} onChange={(e) => setAddDays(e.target.value)}
+                className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
                 <option value="7">7 days</option>
                 <option value="14">14 days</option>
                 <option value="30">30 days</option>
@@ -184,7 +263,8 @@ const ModelInfoTab = () => {
             </div>
             <div className="space-y-2">
               <label className="text-xs text-muted-foreground">Semester Phase</label>
-              <select value={addPhase} onChange={(e) => setAddPhase(e.target.value)} className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+              <select value={addPhase} onChange={(e) => setAddPhase(e.target.value)}
+                className="w-full bg-background border border-border rounded-xl px-3 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
                 <option>Regular</option>
                 <option>Exams</option>
                 <option>Holidays</option>
@@ -202,10 +282,18 @@ const ModelInfoTab = () => {
             </div>
           )}
           {addDataState === 'done' && (
-            <div className="mt-6 flex items-center gap-3 text-sm text-success">
-              <CheckCircle2 className="w-4 h-4" />
-              +420 records added · Database now has 1,440 records
+            <div className="mt-6 space-y-3">
+              <div className="flex items-center gap-3 text-sm text-success">
+                <CheckCircle2 className="w-4 h-4" />
+                {addResult?.message}
+              </div>
+              <button onClick={() => setAddDataState('idle')} className="btn-primary text-sm">
+                ➕ Add More Data
+              </button>
             </div>
+          )}
+          {addDataState === 'error' && (
+            <div className="mt-6 text-sm text-destructive">{addResult?.message}</div>
           )}
         </div>
 
@@ -213,7 +301,9 @@ const ModelInfoTab = () => {
         <div className="card-surface glow-hover p-8 relative">
           <div className="absolute top-4 right-6 flex items-center gap-2">
             <span className="text-[10px] font-bold text-muted-foreground tracking-widest uppercase">Ready Status</span>
-            <span className="text-[10px] font-bold text-primary bg-primary/10 px-2 py-0.5 rounded">210/100 ✅</span>
+            <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${pipelineStatus.ready_to_retrain ? 'text-primary bg-primary/10' : 'text-muted-foreground bg-muted/20'}`}>
+              {pipelineStatus.new_records}/{pipelineStatus.threshold} {pipelineStatus.ready_to_retrain ? '✅' : '❌'}
+            </span>
           </div>
           <div className="flex items-start gap-6">
             <div className="p-4 bg-primary rounded-xl flex-shrink-0">
@@ -222,17 +312,20 @@ const ModelInfoTab = () => {
             <div className="space-y-2">
               <h3 className="text-xl font-outfit font-bold">Retrain Prediction Model</h3>
               <p className="text-muted-foreground text-sm leading-relaxed">
-                Checks if enough new data exists since last training. If threshold met (100+ new records), retrains and saves new version to registry.
+                Checks if enough new data exists since last training. If threshold met (100+ new records),
+                retrains and saves new version to registry.
               </p>
             </div>
           </div>
 
           <div className="mt-6 space-y-3 text-xs">
             {[
-              ['Last trained on', '2024-08-10'],
-              ['Records used', '1,020'],
-              ['New records since', '210'],
-              ['Threshold status', 'Met (210 ≥ 100)'],
+              ['Last trained on',    pipelineStatus.last_trained],
+              ['Records used',       pipelineStatus.trained_on.toLocaleString()],
+              ['New records since',  pipelineStatus.new_records.toString()],
+              ['Threshold status',   pipelineStatus.ready_to_retrain
+                ? `Met (${pipelineStatus.new_records} ≥ ${pipelineStatus.threshold})`
+                : `Not met (${pipelineStatus.new_records} < ${pipelineStatus.threshold})`],
             ].map(([k, v]) => (
               <div key={k} className="flex justify-between">
                 <span className="text-muted-foreground">{k}</span>
@@ -243,34 +336,49 @@ const ModelInfoTab = () => {
 
           <div className="mt-4 space-y-1">
             <div className="h-2 w-full bg-border rounded-full overflow-hidden">
-              <div className="h-full bg-primary rounded-full" style={{ width: '100%', boxShadow: '0 0 12px rgba(245,158,11,0.4)' }} />
+              <div className="h-full bg-primary rounded-full transition-all duration-700"
+                style={{ width: `${thresholdPct}%`, boxShadow: thresholdPct >= 100 ? '0 0 12px rgba(245,158,11,0.4)' : 'none' }} />
             </div>
-            <p className="text-[10px] text-primary font-semibold">210/100 — Ready</p>
+            <p className={`text-[10px] font-semibold ${pipelineStatus.ready_to_retrain ? 'text-primary' : 'text-muted-foreground'}`}>
+              {pipelineStatus.new_records}/{pipelineStatus.threshold} — {pipelineStatus.ready_to_retrain ? 'Ready' : 'Not ready'}
+            </p>
           </div>
 
           {retrainState === 'idle' && (
-            <button onClick={handleRetrain} className="btn-secondary mt-6 text-sm">🔄 Retrain Model</button>
+            <button onClick={handleRetrain} disabled={!pipelineStatus.ready_to_retrain}
+              className={`btn-secondary mt-6 text-sm ${!pipelineStatus.ready_to_retrain ? 'opacity-40 cursor-not-allowed' : ''}`}>
+              🔄 Retrain Model
+            </button>
           )}
           {retrainState === 'loading' && (
             <div className="mt-6 space-y-2">
               {RETRAIN_STEPS.map((step, i) => (
                 <div key={i} className={`flex items-center gap-2 text-sm transition-opacity duration-300 ${i < retrainStep ? 'opacity-100' : 'opacity-30'}`}>
-                  {i < retrainStep ? (
-                    <CheckCircle2 className="w-4 h-4 text-success" />
-                  ) : (
-                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                  )}
+                  {i < retrainStep
+                    ? <CheckCircle2 className="w-4 h-4 text-success" />
+                    : <Loader2 className="w-4 h-4 animate-spin text-primary" />}
                   <span className={i < retrainStep ? 'text-success' : 'text-muted-foreground'}>{step}</span>
                 </div>
               ))}
             </div>
           )}
           {retrainState === 'done' && (
-            <div className="mt-6 card-surface p-4 border-primary/30">
-              <div className="flex items-center gap-2 text-success text-sm font-semibold mb-2">
-                <CheckCircle2 className="w-4 h-4" /> Model v5 saved
+            <div className="mt-6 space-y-3">
+              <div className="card-surface p-4 border-primary/30">
+                <div className="flex items-center gap-2 text-success text-sm font-semibold mb-2">
+                  <CheckCircle2 className="w-4 h-4" /> Model saved
+                </div>
+                <p className="text-xs text-muted-foreground">{retrainResult?.message}</p>
               </div>
-              <p className="text-xs text-muted-foreground">Accuracy 92.8% · F1 89.3% · +420 records</p>
+              <button onClick={() => { setRetrainState('idle'); fetchAll(); }} className="btn-secondary text-sm">
+                🔄 Retrain Again
+              </button>
+            </div>
+          )}
+          {retrainState === 'error' && (
+            <div className="mt-6 space-y-3">
+              <p className="text-sm text-destructive">{retrainError}</p>
+              <button onClick={() => setRetrainState('idle')} className="btn-secondary text-sm">Try Again</button>
             </div>
           )}
         </div>
