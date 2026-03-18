@@ -7,6 +7,8 @@ import time
 import joblib
 import pandas as pd
 import numpy as np
+import sys
+sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "scripts"))
 from datetime import datetime
 from typing import Optional
 
@@ -499,8 +501,8 @@ def pipeline_status():
 def add_data(req: AddDataRequest):
     try:
         # Import generate logic directly — no subprocess needed
-        import sys
-        sys.path.append(os.path.join(os.path.dirname(__file__), ".."))
+        
+        
         from generate_mess_data import generate_data
         from datetime import timedelta
 
