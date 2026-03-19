@@ -29,7 +29,7 @@ export const calculateDemand = (occupancy: number, tier: DemandLevel): DemandLev
 };
 
 export const getWasteMetrics = (occupancy: number, meal: MealType, demand: DemandLevel) => {
-  const recommended = Math.round(occupancy * 10 * MEAL_FACTORS[meal]);
+  const recommended = Math.round(occupancy * 3 * MEAL_FACTORS[meal]);
   const expected = Math.round(recommended * DEMAND_FACTORS[demand]);
   const waste = recommended - expected;
   const wastePct = recommended > 0 ? (waste / recommended) * 100 : 0;

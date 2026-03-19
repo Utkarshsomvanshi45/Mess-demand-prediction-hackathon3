@@ -76,7 +76,7 @@ MEAL_FACTORS   = {"Breakfast": 0.6, "Lunch": 0.9, "Dinner": 0.75}
 DEMAND_FACTORS = {"High": 0.92, "Medium": 0.75, "Low": 0.55}
 
 def get_waste_metrics(occupancy: int, meal: str, demand: str):
-    recommended = round(occupancy * 10 * MEAL_FACTORS.get(meal, 0.75))
+    recommended = round(occupancy * 3 * MEAL_FACTORS.get(meal, 0.75))
     expected    = round(recommended * DEMAND_FACTORS.get(demand, 0.75))
     waste       = recommended - expected
     waste_pct   = (waste / recommended * 100) if recommended > 0 else 0
