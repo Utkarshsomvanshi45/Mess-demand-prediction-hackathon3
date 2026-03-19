@@ -1,187 +1,252 @@
-# 🍽️ Mess Demand & Food Waste Prediction System
+# Mess Demand & Food Waste Management System
 
-## 📌 Project Overview
-This project is developed as part of **Hackathon-3: Development of Pipelines and Maintenance of Models**.  
-The objective is to build a **production-ready machine learning pipeline** for predicting mess demand in a university setting, with emphasis on **engineering robustness**, **model lifecycle**, **SQL data storage**, **dashboarding**, and **version control**.
-
-The system predicts mess demand levels (**Low / Medium / High**) using operational and contextual features such as:
-- Meal type and day
-- Menu composition (primary dish abstraction)
-- Hostel occupancy
-- Academic calendar (Regular / Exams / Holidays)
-- Availability of dessert, fruit, and drinks
-
-The focus of this project is **pipeline survivability and maintainability**, not model accuracy alone.
+> A production-ready machine learning pipeline for predicting university mess demand and estimating food waste — built for Hackathon-3: ML Pipeline Development & Model Maintenance.
 
 ---
 
-## 🎯 Problem Statement
-University mess operations frequently face:
-- Food wastage due to over-preparation
-- Long queues and shortages due to under-preparation
-- Poor anticipation of demand changes caused by menu and academic schedules
+## Overview
 
-This project aims to:
-- Predict mess demand in advance
-- Support better food quantity planning
-- Reduce food wastage
-- Improve operational efficiency
+University mess operations regularly face two opposing problems: over-preparation leads to food waste, while under-preparation causes shortages and long queues. This system addresses both by predicting demand levels in advance and estimating food waste per meal using a fully automated ML pipeline.
+
+The system classifies demand as **Low**, **Medium**, or **High** based on operational and contextual inputs such as meal type, menu composition, hostel occupancy, and academic calendar phase. It also calculates estimated food waste and cost impact per meal to support better planning decisions.
 
 ---
 
-## 🧠 Solution Approach
-The solution is implemented as a complete ML pipeline consisting of:
+## Features
 
-1. **Synthetic Data Generation**
-   - Rule-based generation simulating realistic mess behavior
-   - Factors include meal timing, menu type, occupancy, and semester phase
-
-2. **SQL Data Storage**
-   - All data stored in a SQLite database
-   - Enables structured querying and future updates
-
-3. **Model Training**
-   - Traditional machine learning models (no neural networks)
-   - Feature engineering to generalize menu impact
-   - Models evaluated and serialized for reuse
-
-4. **Prediction-Ready Pipeline**
-   - Models loaded outside notebooks
-   - Supports real-time predictions
-
-5. **Interactive Dashboard**
-   - Built using Streamlit
-   - Provides prediction, EDA, data overview, and model lifecycle visibility
-
-6. **Model Lifecycle & Retraining**
-   - New data triggers retraining
-   - Each retraining creates a new model version
-   - Older models are preserved using a model registry
+- **Demand prediction** — Multi-class classification (Low / Medium / High) using 6 ML models
+- **Food waste estimation** — Rule-based formula combining demand predictions with occupancy and meal factors
+- **Automated retraining** — Model retrains automatically when 100+ new records are added to the database
+- **Data drift detection** — PSI, Chi-Square, and Mean Shift checks on key features
+- **Model registry** — Full version tracking with metrics, timestamps, and record counts for every trained model
+- **Dual dashboards** — React + FastAPI (primary) and Streamlit (secondary)
 
 ---
 
-## 🧪 Data Description
-- The dataset is **synthetically generated** using rule-based logic
-- Simulates real university mess operations
-- Stored in a **SQLite database**
-- Includes features such as:
-  - Meal type
-  - Day of week
-  - Primary dish abstraction
-  - Hostel occupancy
-  - Semester phase
-  - Demand level (target variable)
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| **Languages** | Python, TypeScript, SQL |
+| **API** | FastAPI, Uvicorn, Pydantic |
+| **ML** | Scikit-learn, XGBoost, Pandas, NumPy |
+| **Database** | SQLite (`database/mess.db`) |
+| **Model storage** | Joblib (`.pkl`), JSON (model registry) |
+| **Frontend** | React, TypeScript, Vite, Tailwind CSS, Recharts |
+| **Alt dashboard** | Streamlit, Matplotlib, Seaborn, Plotly |
+| **Dev tools** | Git, Node.js, npm, ESLint, Vitest, VS Code |
 
 ---
 
-## 🤖 Machine Learning Models
+## ML Models
 
-- **Problem Type:** Multi-class Classification  
-- **Target Variable:** Demand Level (Low / Medium / High)  
+Six models are trained and evaluated on every run. The best-performing model is selected automatically based on **Macro F1-Score**.
 
-### 🧪 Models Trained & Evaluated
+| # | Model | Library |
+|---|---|---|
+| 1 | Logistic Regression | scikit-learn |
+| 2 | Decision Tree | scikit-learn |
+| 3 | Random Forest | scikit-learn |
+| 4 | Gradient Boosting | scikit-learn |
+| 5 | XGBoost Classifier | xgboost |
+| 6 | Support Vector Machine (SVM) | scikit-learn |
 
-During experimentation and retraining phases, the following models were trained:
-
-- Logistic Regression  
-- Decision Tree  
-- Random Forest  
-- Gradient Boosting Classifier  
-- XGBoost Classifier  
-
-Each model was evaluated using:
-
-- Accuracy  
-- Precision (Macro)  
-- Recall (Macro)  
-- F1-Score (Macro)  
-
-The final deployed model for each version was selected based on **Macro F1-Score**, ensuring balanced performance across all demand classes.
+**Evaluation metrics:** Accuracy · Precision (Macro) · Recall (Macro) · F1-Score (Macro)
 
 ---
 
----
+## Food Waste Estimation
 
-## 🔄 Model Lifecycle & Update History
+Since real consumption data requires IoT sensors, waste is estimated using domain-informed factors applied to the predicted demand level and current occupancy.
 
-This project follows a structured retraining and versioning workflow.
+```
+Recommended Portions  = Occupancy × 3 × Meal Factor
+Expected Consumption  = Recommended × Demand Factor
+Estimated Waste       = Recommended − Expected Consumption
+Cost of Waste         = Waste Portions × ₹45
+```
 
-Whenever new synthetic data is generated and appended to the database:
+| | Breakfast | Lunch | Dinner |
+|---|---|---|---|
+| **Meal Factor** | 0.6 | 0.9 | 0.75 |
 
-1. The model is retrained on the updated dataset.
-2. Performance metrics are recalculated.
-3. A new model version is saved.
-4. The `model_registry.json` file is updated.
-5. The dashboard automatically loads the latest model version.
-
----
-
-### 📅 Model Training Timeline
-
-| Version | Date        | Event              | Description |
-|---------|------------|--------------------|-------------|
-| v1      | 08 Feb 2025 | Initial Training   | Baseline model trained on initial dataset |
-| v2      | 20 Feb 2025 | First Retraining   | Additional data appended and model retrained |
-| v3      | 28 Feb 2025 | Second Retraining  | Data regenerated and model re-evaluated |
-| v4      | 03 Mar 2025 | Third Retraining  | Data regenerated and model re-evaluated |
-
-Each retraining includes:
-
-- Updated dataset size  
-- Updated evaluation metrics  
-- Updated training timestamp  
-- Version increment in registry  
+| | High | Medium | Low |
+|---|---|---|---|
+| **Demand Factor** | 0.92 | 0.75 | 0.55 |
 
 ---
 
-## 📊 Model Registry
+## System Architecture
 
-The file `models/model_registry.json` maintains:
-
-- Model version  
-- Model type  
-- Training date  
-- Number of records used  
-- Accuracy  
-- Precision (Macro)  
-- Recall (Macro)  
-- F1-Score (Macro)  
-
-This ensures transparency, reproducibility, and traceability of model evolution.
----
-
-## 📊 Dashboard Features
-The Streamlit dashboard provides:
-
-### 🔮 Demand Prediction
-- Inputs:
-  - Meal type
-  - Primary dish
-  - Day of week
-  - Hostel occupancy
-  - Semester phase
-  - Dessert / Fruit / Drink indicators
-- Output:
-  - Predicted demand level (Low / Medium / High)
-
-### 📊 EDA & Insights
-- Overall demand distribution
-- Demand by meal type
-- Demand by day of week
-- Hostel occupancy vs demand
-- Impact of drinks on demand
-- Demand variation across semester phases
-
-### 📁 Data Overview
-- Dataset statistics
-- Sample records
-- Data description
-
-### ℹ️ Model Info
-- Current model version
-- Training date
-- Records used
-- Algorithm type
+```
+Data Generator (Python)
+        ↓
+SQLite Database
+        ↓                    ←──────────────────────────┐
+ML Model Training                              Data Drift Detection
+        ↓                                    (PSI · Chi-Square · Mean Shift)
+Model Registry (JSON)
+        ↓
+FastAPI Backend
+        ↓
+React Dashboard (Frontend)
+        ↓
+User Interaction & Predictions
+```
 
 ---
 
+## Pipeline Scripts
+
+| Script | Description |
+|---|---|
+| `generate_mess_data.py` | Generates synthetic mess records across Regular, Exam, and Holiday phases |
+| `train_model.py` | Trains all 6 models, selects best by Macro F1, saves model and encoders |
+| `retrain_model.py` | Checks 100-record threshold and triggers retraining if met |
+| `detect_drift.py` | Runs PSI, Chi-Square, and Mean Shift checks; outputs a formatted report |
+| `verify_data.py` | Validates data integrity in the database |
+| `create_database.py` | Initialises the SQLite database and schema |
+
+---
+
+## API Endpoints
+
+Base URL: `http://localhost:8000`
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/predict` | Demand prediction + food waste estimation |
+| `GET` | `/eda` | Chart data for the EDA tab |
+| `GET` | `/waste-stats` | Waste metrics, charts, and reduction insights |
+| `GET` | `/data` | Dataset preview and summary statistics |
+| `GET` | `/model-info` | Metrics, feature importance, confusion matrix |
+| `GET` | `/model-history` | All registry versions for the model evolution chart |
+| `GET` | `/pipeline-status` | Record counts and retrain readiness |
+| `POST` | `/add-data` | Generate and insert new synthetic records |
+| `POST` | `/retrain` | Threshold check, retrain model, update registry |
+
+---
+
+## Data Drift Detection
+
+Run drift detection at any time:
+
+```bash
+python detect_drift.py
+```
+
+The script splits records into reference (first 70%) and current (last 30%) and checks for distribution shifts using three methods:
+
+| Method | Feature | Threshold |
+|---|---|---|
+| **PSI** (Population Stability Index) | `hostel_occupancy_pct` | PSI > 0.20 → retrain recommended |
+| **Chi-Square Test** | `meal_type`, `semester_phase`, `day_of_week` | p-value < 0.05 → drift detected |
+| **Mean Shift Analysis** | `has_dessert`, `is_weekend` | Shift > 5% → flagged |
+
+---
+
+## Automated Retraining
+
+Whenever new data is added to the database, the system checks if the retraining threshold has been met:
+
+1. New records added via `/add-data` or manually
+2. System checks if **100+ new records** exist since last training
+3. If threshold is met — model retrains on the full updated dataset
+4. Metrics recalculated on a held-out test split
+5. New model version saved to `models/`
+6. `model_registry.json` updated automatically
+7. Dashboard loads the latest model version
+
+To retrain manually without the threshold check:
+
+```bash
+python retrain_model.py
+```
+
+---
+
+## Model Registry
+
+Every trained model version is tracked in `models/model_registry.json` with:
+
+- Model name and file path
+- Training date and timestamp
+- Number of records used
+- Accuracy, Precision, Recall, F1-Score (Macro)
+- Training time in seconds
+
+| Version | Date | Records | Notes |
+|---|---|---|---|
+| v1 | 2026-02-20 | 600 | Initial training |
+| v2 | 2026-02-20 | 600 | First retraining |
+| v3 | 2026-02-28 | 1,020 | second retraining |
+| v4 | 2026-03-08 | 1,020 | Third retraining |
+| v5 | 2026-03-18 | 1300 | Fourth retraining |
+
+---
+
+## Dataset
+
+The dataset is synthetically generated to simulate real university mess operations and stored in SQLite (`database/mess.db`), table: `mess_records`.
+
+| Feature | Type | Description |
+|---|---|---|
+| `meal_type` | Categorical | Breakfast / Lunch / Dinner |
+| `day_of_week` | Categorical | Monday – Sunday |
+| `primary_item` | Categorical | Main dish served |
+| `menu_demand_tier` | Categorical | High / Medium / Low |
+| `has_paneer` | Binary | Paneer served |
+| `has_chicken` | Binary | Chicken served |
+| `has_egg` | Binary | Egg served |
+| `has_dessert` | Binary | Dessert served |
+| `has_special_cuisine` | Binary | Special cuisine served |
+| `has_drink` | Binary | Drink served |
+| `has_fruit` | Binary | Fruit served |
+| `hostel_occupancy_pct` | Numerical | % of hostel occupied |
+| `semester_phase` | Categorical | Regular / Exams / Holidays |
+| `is_weekend` | Binary | Weekend flag |
+| `previous_meal_demand` | Categorical | Demand level of previous meal |
+| `demand_level` | Categorical | **Target** — Low / Medium / High |
+
+---
+
+## Dashboards
+
+### React Dashboard (Primary) — `http://localhost:8080`
+
+Built with React + TypeScript + Recharts, connected to the FastAPI backend.
+
+- **Demand Prediction** — Select inputs, get real-time prediction + waste estimate
+- **Waste Management** — Total waste, trends by meal type, weekly charts, cost impact
+- **EDA & Insights** — Demand distribution, occupancy vs demand, semester phase impact
+- **Data Overview** — Live dataset preview and summary statistics
+- **Model Info & Pipeline** — Metrics, feature importance, confusion matrix, model evolution chart, pipeline controls (Add Data / Retrain)
+
+### Streamlit Dashboard (Secondary)
+
+```bash
+streamlit run app.py
+```
+
+Covers demand prediction, EDA, data overview, and model info.
+
+---
+
+## Project Structure
+
+```
+├── app/                  # Streamlit dashboard
+├── Backend/              # FastAPI app and API logic
+├── database/             # SQLite database (mess.db)
+├── Frontend/             # React + TypeScript dashboard
+├── models/               # Trained model files and registry
+├── scripts/              # ML pipeline scripts
+├── src/                  # Source utilities
+└── README.md
+```
+
+---
+
+## Author
+
+Developed by **Utkarsh Somvanshi** as part of **Hackathon-3 — ML Pipeline Development & Model Maintenance**.
